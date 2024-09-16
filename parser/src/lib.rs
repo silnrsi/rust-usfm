@@ -1,5 +1,6 @@
 use nom::{error::VerboseError, IResult};
 
+pub mod document;
 pub mod extension;
 pub(crate) mod terminal;
 
