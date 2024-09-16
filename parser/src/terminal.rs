@@ -2,17 +2,13 @@
 use super::Result;
 use nom::{
     bytes::complete::{escaped, is_not, tag},
-    character::complete::{char, none_of, one_of},
-    combinator::{eof, not, opt, recognize},
+    character::complete::{self as character, char, none_of, one_of},
+    combinator::{eof, not, opt, recognize, value},
     error::context,
     multi::{many0_count, many1_count},
     sequence::{delimited, preceded},
     Parser,
 };
-
-// Re-export these nom parsers as terminals the rest of the crate.
-#[allow(unused_imports)]
-pub(crate) use nom::character::complete::{line_ending, multispace0, multispace1, space0, space1};
 
 #[inline]
 pub(crate) fn bom(input: &str) -> Result<bool> {
@@ -20,9 +16,41 @@ pub(crate) fn bom(input: &str) -> Result<bool> {
 }
 
 #[inline] // NL
-pub(crate) fn line_ending1(input: &str) -> Result<&str>
-{
-    recognize(many1_count(line_ending)).parse(input)
+pub(crate) fn line_ending(input: &str) -> Result<&str> {
+    value("\n", character::line_ending).parse(input)
+}
+
+#[inline] // NL
+pub(crate) fn line_ending1(input: &str) -> Result<&str> {
+    value("\n", many1_count(character::line_ending)).parse(input)
+}
+
+fn reduce_space(spaces: &str) -> &str {
+    match spaces {
+        "" => "",
+        ws if ws.contains('\n') => "\n",
+        _ => " ",
+    }
+}
+
+#[inline] // NL
+pub(crate) fn multispace0(input: &str) -> Result<&str> {
+    character::multispace0.map(reduce_space).parse(input)
+}
+
+#[inline] // NL
+pub(crate) fn multispace1(input: &str) -> Result<&str> {
+    character::multispace1.map(reduce_space).parse(input)
+}
+
+#[inline] // NL
+pub(crate) fn space0(input: &str) -> Result<&str> {
+    character::space0.map(reduce_space).parse(input)
+}
+
+#[inline] // NL
+pub(crate) fn space1(input: &str) -> Result<&str> {
+    value(" ", character::space1).parse(input)
 }
 
 pub(crate) fn _text(input: &str) -> Result<&str>
@@ -42,11 +70,11 @@ pub(crate) fn text(input: &str) -> Result<&str>
 }
 
 pub(crate) mod marker {
-    use super::Result;
+    use super::{multispace1, Result};
     use nom::{
         branch::alt,
-        bytes::complete::is_not,
-        character::complete::{char, multispace1, one_of},
+        bytes::complete::{self as bytes},
+        character::complete::{char, one_of},
         combinator::{eof, peek, recognize, value},
         error::context,
         sequence::delimited,
@@ -64,7 +92,7 @@ pub(crate) mod marker {
     }
 
     pub fn tag(id: &str) -> impl Fn(&str) -> Result<&str> + '_ {
-        move |input| context("marker tag", delimited(char('\\'), super::tag(id), end)).parse(input)
+        move |input| context("marker tag", delimited(char('\\'), bytes::tag(id), end)).parse(input)
     }
 }
 
@@ -120,31 +148,31 @@ mod test {
 
     #[test]
     fn horizontal_space_terminals() {
-        assert_eq!(space1("\t") as Result, Ok(("", "\t")));
+        assert_eq!(space1("\t") as Result, Ok(("", " ")));
         assert_eq!(space1(" ") as Result, Ok(("", " ")));
-        assert_eq!(space1(HS) as Result, Ok(("", HS)));
+        assert_eq!(space1(HS) as Result, Ok(("", " ")));
         assert_eq!(
             space1(NL),
             Err(Err::Error(VerboseError {
                 errors: vec![(NL, Nom(Space))]
             }))
         );
-        assert_eq!(space0(HS) as Result, Ok(("", HS)));
+        assert_eq!(space0(HS) as Result, Ok(("", " ")));
         assert_eq!(space0(NL) as Result, Ok((NL, "")));
     }
 
     #[test]
     fn any_whitespace_terminals() {
-        assert_eq!(multispace0(HS) as Result, Ok(("", HS)));
-        assert_eq!(multispace0(NL) as Result, Ok(("", NL)));
-        assert_eq!(multispace1(HS) as Result, Ok(("", HS)));
-        assert_eq!(multispace1(NL) as Result, Ok(("", NL)));
+        assert_eq!(multispace0(HS) as Result, Ok(("", " ")));
+        assert_eq!(multispace0(NL) as Result, Ok(("", "\n")));
+        assert_eq!(multispace1(HS) as Result, Ok(("", " ")));
+        assert_eq!(multispace1(NL) as Result, Ok(("", "\n")));
     }
 
     #[test]
     fn newline_terminals() {
         assert_eq!(line_ending("\u{000A}") as Result, Ok(("", "\n")));
-        assert_eq!(line_ending("\u{000D}\u{000A}") as Result, Ok(("", "\r\n")));
+        assert_eq!(line_ending("\u{000D}\u{000A}") as Result, Ok(("", "\n")));
         // TODO: Is carriage return really in the data, and does this case really need to work?
         // assert_eq!(line_ending("\u{000D}"), Ok(("", "\r")));
         assert_eq!(
@@ -154,7 +182,7 @@ mod test {
             }))
         );
         assert_eq!(line_ending("\u{000A}\u{000D}") as Result, Ok(("\r", "\n")));
-        assert_eq!(line_ending1(NL) as Result, Ok(("\r", "\n\r\n")));
+        assert_eq!(line_ending1(NL) as Result, Ok(("\r", "\n")));
         assert_eq!(line_ending1("\u{000A}\u{000D}") as Result, Ok(("\r", "\n")));
         assert_eq!(
             line_ending1("\u{000D}"),
