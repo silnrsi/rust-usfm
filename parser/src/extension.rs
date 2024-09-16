@@ -12,12 +12,12 @@ use nom::{
     combinator::{cut, eof, iterator, opt, success, value},
     error::{context, convert_error, VerboseError},
     multi::separated_list1,
-    sequence::{delimited, pair, terminated},
+    sequence::{delimited, terminated},
     Finish, Parser,
 };
 
-use crate::terminal;
 use super::Result;
+use crate::terminal;
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Extensions(HashMap<String, Marker>);
@@ -118,8 +118,7 @@ impl Display for Category {
     }
 }
 
-fn category(input: &str) -> Result<Category>
-{
+fn category(input: &str) -> Result<Category> {
     let parser = alt((
         value(Category::Cell, tag_no_case("cell")),
         value(Category::VersePara, tag_no_case("versepara")),
@@ -145,10 +144,7 @@ fn category(input: &str) -> Result<Category>
     context("Category", parser).parse(input)
 }
 
-fn field<'a, 'i: 'a, O, F>(
-    id: &'a str,
-    mut value: F,
-) -> impl FnMut(&'i str) -> Result<O> + '_
+fn field<'a, 'i: 'a, O, F>(id: &'a str, mut value: F) -> impl FnMut(&'i str) -> Result<O> + '_
 where
     F: Parser<&'i str, O, VerboseError<&'i str>> + 'i,
 {
@@ -162,8 +158,7 @@ where
     }
 }
 
-fn record(input: &str) -> Result<Marker>
-{
+fn record(input: &str) -> Result<Marker> {
     let attribute = pair(terminal::attrib::name, opt(char('?')).map(|o| o.is_some()));
     let attributes = separated_list1(terminal::space1, attribute);
     let (input, name) = field("marker", terminal::marker::name).parse(input)?;

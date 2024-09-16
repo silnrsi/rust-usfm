@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+use super::Result;
 use nom::{
     bytes::complete::{escaped, is_not, tag},
     character::complete::{char, none_of, one_of},
@@ -8,15 +9,13 @@ use nom::{
     sequence::{delimited, preceded},
     Parser,
 };
-use super::Result;
 
 // Re-export these nom parsers as terminals the rest of the crate.
 #[allow(unused_imports)]
 pub(crate) use nom::character::complete::{line_ending, multispace0, multispace1, space0, space1};
 
 #[inline]
-pub(crate) fn bom(input: &str) -> Result<bool>
-{
+pub(crate) fn bom(input: &str) -> Result<bool> {
     opt(char('\u{FEFF}')).map(|opt| opt.is_some()).parse(input)
 }
 
@@ -54,8 +53,7 @@ pub(crate) mod marker {
         Parser,
     };
 
-    pub fn end(input: &str) -> Result<()>
-    {
+    pub fn end(input: &str) -> Result<()> {
         let parser = value((), alt((multispace1, peek(recognize(one_of("\\|"))), eof)));
         context("end of tag name", parser).parse(input)
     }
@@ -65,14 +63,12 @@ pub(crate) mod marker {
         context("marker name", is_not("\t \r\n")).parse(input)
     }
 
-    pub fn tag(id: &str) -> impl Fn(&str) -> Result<&str> + '_
-    {
+    pub fn tag(id: &str) -> impl Fn(&str) -> Result<&str> + '_ {
         move |input| context("marker tag", delimited(char('\\'), super::tag(id), end)).parse(input)
     }
 }
 
-pub(crate) fn marker(input: &str) -> Result<&str>
-{
+pub(crate) fn marker(input: &str) -> Result<&str> {
     context("marker", delimited(char('\\'), marker::name, marker::end)).parse(input)
 }
 
@@ -89,8 +85,7 @@ pub(crate) mod attrib {
         Parser,
     };
 
-    fn text(input: &str) -> Result<&str>
-    {
+    fn text(input: &str) -> Result<&str> {
         escaped(none_of("\\ \t?"), '\\', one_of(r#""\=~/|"#)).parse(input)
     }
 
@@ -174,10 +169,7 @@ mod test {
     fn marker_parser() {
         assert_eq!(marker::tag("c")(r"\c 1"), Ok(("1", "c")));
         assert_eq!(marker::tag("c")(r"\c\v 1"), Ok(("\\v 1", "c")));
-        assert_eq!(
-            marker::tag("c")(r"\c|attrib=2"),
-            Ok(("|attrib=2", "c"))
-        );
+        assert_eq!(marker::tag("c")(r"\c|attrib=2"), Ok(("|attrib=2", "c")));
         assert_eq!(
             marker::tag("c")(r"\c!attrib=2"),
             Err(Err::Error(VerboseError {
