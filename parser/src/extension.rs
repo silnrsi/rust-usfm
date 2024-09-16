@@ -159,9 +159,13 @@ where
 }
 
 fn record(input: &str) -> Result<Marker> {
-    let attribute = pair(terminal::attrib::name, opt(char('?')).map(|o| o.is_some()));
+    let attribute = |input| {
+        terminal::name
+            .and(opt(char('?')).map(|o| o.is_some()))
+            .parse(input)
+    };
     let attributes = separated_list1(terminal::space1, attribute);
-    let (input, name) = field("marker", terminal::marker::name).parse(input)?;
+    let (input, name) = field("marker", terminal::name).parse(input)?;
     cut(terminated(
         permutation((
             opt(field("attributes", attributes)),

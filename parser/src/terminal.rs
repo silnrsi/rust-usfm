@@ -1,8 +1,11 @@
 #![allow(dead_code)]
 use super::Result;
 use nom::{
-    bytes::complete::{escaped, is_not, tag},
-    character::complete::{self as character, char, none_of, one_of},
+    bytes::complete::{is_not, take_while1},
+    character::{
+        complete::{self as character, char, none_of, one_of},
+        is_alphanumeric,
+    },
     combinator::{eof, opt, recognize, value},
     error::context,
     multi::{many0_count, many1_count},
@@ -53,6 +56,10 @@ pub(crate) fn space1(input: &str) -> Result<&str> {
     value(" ", character::space1).parse(input)
 }
 
+pub(crate) fn name(input: &str) -> Result<&str> {
+    take_while1(|c| is_alphanumeric(c as u8) || c == '-' || c == '_').parse(input)
+}
+
 pub(crate) fn text(input: &str) -> Result<&str> {
     let escape_sequence = preceded(char('\\'), one_of(r#"/~\|"#));
     let non_break = preceded(char('/'), none_of("\\/"));
@@ -79,41 +86,24 @@ pub(crate) mod marker {
         context("end of tag name", parser).parse(input)
     }
 
-    pub fn name(input: &str) -> Result<&str>
-    {
-        context("marker name", is_not("\t \r\n")).parse(input)
-    }
-
     pub fn tag(id: &str) -> impl Fn(&str) -> Result<&str> + '_ {
         move |input| context("marker tag", delimited(char('\\'), bytes::tag(id), end)).parse(input)
     }
 }
 
 pub(crate) fn marker(input: &str) -> Result<&str> {
-    context("marker", delimited(char('\\'), marker::name, marker::end)).parse(input)
+    context("marker", delimited(char('\\'), self::name, marker::end)).parse(input)
 }
 
 pub(crate) mod attrib {
     use super::Result;
     use nom::{
-        bytes::complete::escaped,
-        character::{
-            complete::{none_of, one_of, satisfy},
-            is_alphanumeric,
-        },
-        combinator::recognize,
-        multi::many1_count,
+        character::complete::one_of,
         Parser,
     };
 
     fn text(input: &str) -> Result<&str> {
         escaped(none_of("\\ \t?"), '\\', one_of(r#""\=~/|"#)).parse(input)
-    }
-
-    pub fn name(input: &str) -> Result<&str>
-    {
-        let ident = satisfy(|c| is_alphanumeric(c as u8) || c == '-' || c == '_');
-        recognize(many1_count(ident)).parse(input)
     }
 }
 
