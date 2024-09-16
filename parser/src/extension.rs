@@ -227,6 +227,10 @@ impl Extensions {
     pub fn update_from_reader<R: Read>(self, reader: R) -> io::Result<Self> {
         self.update_from_str(io::read_to_string(reader)?)
     }
+
+    pub fn shrink_to_fit(&mut self) {
+        self.0.shrink_to_fit();
+    }
 }
 
 impl From<&str> for Extensions {
