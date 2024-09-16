@@ -11,7 +11,7 @@ use nom::{
     character::complete::{char, not_line_ending},
     combinator::{cut, eof, iterator, opt, success, value},
     error::{context, convert_error, VerboseError},
-    multi::separated_list1,
+    multi::{many0, separated_list1},
     sequence::{delimited, terminated},
     Finish, Parser,
 };
@@ -170,10 +170,11 @@ fn record(input: &str) -> Result<Marker> {
         permutation((
             opt(field("attributes", attributes)),
             field("category", category).or(success(Category::Unknown)),
-            opt(field("closes", terminal::marker::name)),
-            opt(field("closedby", terminal::marker::name)),
-            opt(field("defattrib", terminal::attrib::name)),
+            opt(field("closes", terminal::name)),
+            opt(field("closedby", terminal::name)),
+            opt(field("defattrib", terminal::name)),
             opt(field("description", not_line_ending)),
+            many0(field("attribute", attribute)),
         )),
         terminal::line_ending1.or(eof),
     ))
@@ -184,6 +185,7 @@ fn record(input: &str) -> Result<Marker> {
                 .0
                 .unwrap_or_default()
                 .into_iter()
+                .chain(field.6.into_iter())
                 .map(|(k, v)| (k.to_owned(), v)),
         ),
         category: field.1,
