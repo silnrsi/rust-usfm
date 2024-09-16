@@ -3,7 +3,7 @@ use super::Result;
 use nom::{
     bytes::complete::{escaped, is_not, tag},
     character::complete::{self as character, char, none_of, one_of},
-    combinator::{eof, not, opt, recognize, value},
+    combinator::{eof, opt, recognize, value},
     error::context,
     multi::{many0_count, many1_count},
     sequence::{delimited, preceded},
@@ -53,20 +53,13 @@ pub(crate) fn space1(input: &str) -> Result<&str> {
     value(" ", character::space1).parse(input)
 }
 
-pub(crate) fn _text(input: &str) -> Result<&str>
-{
+pub(crate) fn text(input: &str) -> Result<&str> {
     let escape_sequence = preceded(char('\\'), one_of(r#"/~\|"#));
     let non_break = preceded(char('/'), none_of("\\/"));
-    let specials = recognize(non_break.or(escape_sequence));
-    let runs = is_not("\\/").or(specials);
+    let medial_line_ending = preceded(multispace1, none_of("\\/"));
+    let specials = recognize(medial_line_ending.or(non_break).or(escape_sequence));
+    let runs = is_not("\\/\r\n").or(specials);
     recognize(many0_count(runs)).or(eof).parse(input)
-}
-
-pub(crate) fn text(input: &str) -> Result<&str>
-
-{
-    let run = preceded(not(eof).and(opt(char('/'))), escaped(is_not("\\/"), '\\', one_of(r#"/~\|"#)));
-    recognize(many0_count(run)).parse(input)
 }
 
 pub(crate) mod marker {
@@ -230,7 +223,7 @@ mod test {
         assert_eq!(text("Some text\\v 1") as Result, Ok(("\\v 1", "Some text")));
         assert_eq!(
             text("Some text   \r\n   \\v 1") as Result,
-            Ok(("\\v 1", "Some text   \r\n   "))
+            Ok(("\r\n   \\v 1", "Some text   "))
         );
         assert_eq!(
             text(r#"Some text \\ \~ \/"#) as Result,
