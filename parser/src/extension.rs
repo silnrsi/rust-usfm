@@ -150,7 +150,7 @@ where
 {
     move |input| {
         let parser = delimited(
-            terminal::marker::tag(id).and(terminal::space0),
+            terminal::marker::tag(id),
             |input| value.parse(input),
             terminal::line_ending.or(eof),
         );

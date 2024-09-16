@@ -98,12 +98,13 @@ pub(crate) fn marker(input: &str) -> Result<&str> {
 pub(crate) mod attrib {
     use super::Result;
     use nom::{
+        bytes::complete::{escaped, is_not},
         character::complete::one_of,
         Parser,
     };
 
     fn text(input: &str) -> Result<&str> {
-        escaped(none_of("\\ \t?"), '\\', one_of(r#""\=~/|"#)).parse(input)
+        escaped(is_not("\\ \t?"), '\\', one_of(r#""\=~/|"#)).parse(input)
     }
 }
 
