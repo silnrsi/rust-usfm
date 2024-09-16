@@ -7,8 +7,8 @@ use std::{
 
 use nom::{
     branch::{alt, permutation},
-    bytes::complete::{is_not, tag_no_case},
-    character::complete::char,
+    bytes::complete::tag_no_case,
+    character::complete::{char, not_line_ending},
     combinator::{cut, eof, iterator, opt, success, value},
     error::{context, convert_error, VerboseError},
     multi::separated_list1,
@@ -169,7 +169,7 @@ fn record(input: &str) -> Result<Marker> {
             opt(field("closes", terminal::marker::name)),
             opt(field("closedby", terminal::marker::name)),
             opt(field("defattrib", terminal::attrib::name)),
-            opt(field("description", is_not("\r\n"))),
+            opt(field("description", not_line_ending)),
         )),
         terminal::line_ending1.or(eof),
     ))
@@ -234,14 +234,9 @@ impl From<&str> for Extensions {
 #[cfg(test)]
 mod tests {
     use nom::{
-        bytes::complete::is_not,
-        error::{
-            context,
-            ErrorKind::Many1Count,
-            VerboseError,
-            VerboseErrorKind::{Context, Nom},
-        },
-        Finish, IResult,
+        character::complete::not_line_ending,
+        error::{context, VerboseError},
+        IResult,
     };
 
     use super::{field, record, Category, Extensions, Marker};
@@ -250,46 +245,16 @@ mod tests {
 
     #[test]
     fn parse_field_combinator() {
-        let mut parser = field("test", context("rest of line", is_not("\n\r")));
+        let mut parser = field("test", context("rest of line", not_line_ending));
         const OK: Result = Ok(("", "value"));
 
-        assert_eq!(parser("\\test value") as Result, OK);
-        assert_eq!(parser("\\test value\n") as Result, OK);
-        assert_eq!(parser("\\test  value\n") as Result, OK);
-        assert_eq!(parser("\\test\tvalue\n") as Result, OK);
-        assert_eq!(
-            parser("\\test\n").finish(),
-            Err(VerboseError {
-                errors: [
-                    ("", Nom(Many1Count)),
-                    ("", Context("rest of line")),
-                    ("\\test\n", Context("record field"))
-                ]
-                .into(),
-            })
-        );
-        assert_eq!(
-            parser("\\test ").finish(),
-            Err(VerboseError {
-                errors: [
-                    ("", Nom(Many1Count)),
-                    ("", Context("rest of line")),
-                    ("\\test ", Context("record field"))
-                ]
-                .into()
-            })
-        );
-        assert_eq!(
-            parser("\\test").finish(),
-            Err(VerboseError {
-                errors: [
-                    ("", Nom(Many1Count)),
-                    ("", Context("rest of line")),
-                    ("\\test", Context("record field"))
-                ]
-                .into()
-            })
-        );
+        assert_eq!(parser("\\test value"), OK);
+        assert_eq!(parser("\\test value\n"), OK);
+        assert_eq!(parser("\\test  value\n"), OK);
+        assert_eq!(parser("\\test\tvalue\n"), OK);
+        assert_eq!(parser("\\test\n"), Ok(("", "")));
+        assert_eq!(parser("\\test "), Ok(("", "")));
+        assert_eq!(parser("\\test"), Ok(("", "")));
     }
 
     #[test]
