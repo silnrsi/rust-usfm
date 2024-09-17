@@ -251,10 +251,12 @@ impl Extensions {
 #[cfg(test)]
 mod tests {
     use nom::{
-        Err::{Failure},
         character::complete::not_line_ending,
-        error::{context, VerboseError, VerboseErrorKind::{Char, Context}},
-        IResult,
+        error::{
+            context, convert_error, VerboseError,
+            VerboseErrorKind::{Char, Context},
+        },
+        Finish, IResult,
     };
 
     use super::{field, record, Category, Extensions, Marker};
@@ -276,26 +278,43 @@ mod tests {
     }
 
     #[test]
-    fn parse_record() {
+    fn parse_record_error() {
+        let input = "marker test\n\\category internal\n";
+
         assert_eq!(
-            record("marker test\n\\category internal\n"),
-            Err(Failure(VerboseError {
+            record(input).finish(),
+            Err(VerboseError {
                 errors: vec![
-                    (
-                        "marker test\n\\category internal\n",
-                        Char('\\')
-                    ),
-                    (
-                        "marker test\n\\category internal\n",
-                        Context("marker tag")
-                    ),
+                    ("marker test\n\\category internal\n", Char('\\')),
+                    ("marker test\n\\category internal\n", Context("marker tag")),
                     (
                         "marker test\n\\category internal\n",
                         Context("record field")
                     )
                 ]
-            }))
+            })
         );
+
+        assert_eq!(
+            record(input).finish().map_err(|e| convert_error(input, e)),
+            Err("0: at line 1:\n\
+                marker test\n\
+                ^\n\
+                expected '\\', found m\n\
+                \n\
+                1: at line 1, in marker tag:\n\
+                marker test\n\
+                ^\n\
+                \n\
+                2: at line 1, in record field:\n\
+                marker test\n\
+                ^\n\n"
+                .into())
+        );
+    }
+
+    #[test]
+    fn parse_record() {
         assert_eq!(
             record("\\marker test\n\\category internal\n") as Result<Marker>,
             Ok((

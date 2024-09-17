@@ -120,7 +120,7 @@ mod test {
             VerboseError,
             VerboseErrorKind::{Char, Context, Nom},
         },
-        Err,
+        Finish,
     };
 
     const HS: &str = "\u{0009}\u{0020}";
@@ -136,10 +136,10 @@ mod test {
         assert_eq!(space1(" ") as Result, Ok(("", " ")));
         assert_eq!(space1(HS) as Result, Ok(("", " ")));
         assert_eq!(
-            space1(NL),
-            Err(Err::Error(VerboseError {
+            space1(NL).finish(),
+            Err(VerboseError {
                 errors: vec![(NL, Nom(Space))]
-            }))
+            })
         );
         assert_eq!(space0(HS) as Result, Ok(("", " ")));
         assert_eq!(space0(NL) as Result, Ok((NL, "")));
@@ -160,19 +160,19 @@ mod test {
         // TODO: Is carriage return really in the data, and does this case really need to work?
         // assert_eq!(line_ending("\u{000D}"), Ok(("", "\r")));
         assert_eq!(
-            line_ending("\u{000D}"),
-            Err(Err::Error(VerboseError {
+            line_ending("\u{000D}").finish(),
+            Err(VerboseError {
                 errors: vec![("\r", Nom(CrLf))]
-            }))
+            })
         );
         assert_eq!(line_ending("\u{000A}\u{000D}") as Result, Ok(("\r", "\n")));
         assert_eq!(line_ending1(NL) as Result, Ok(("\r", "\n")));
         assert_eq!(line_ending1("\u{000A}\u{000D}") as Result, Ok(("\r", "\n")));
         assert_eq!(
-            line_ending1("\u{000D}"),
-            Err(Err::Error(VerboseError {
+            line_ending1("\u{000D}").finish(),
+            Err(VerboseError {
                 errors: vec![("\r", Nom(Many1Count))]
-            }))
+            })
         );
         assert_eq!(line_ending("\u{000A}\u{000D}") as Result, Ok(("\r", "\n")));
     }
@@ -183,27 +183,27 @@ mod test {
         assert_eq!(marker::tag("c")(r"\c\v 1"), Ok(("\\v 1", "c")));
         assert_eq!(marker::tag("c")(r"\c|attrib=2"), Ok(("|attrib=2", "c")));
         assert_eq!(
-            marker::tag("c")(r"\c!attrib=2"),
-            Err(Err::Error(VerboseError {
+            marker::tag("c")(r"\c!attrib=2").finish(),
+            Err(VerboseError {
                 errors: vec![
                     ("!attrib=2", Nom(Eof)),
                     ("!attrib=2", Nom(Alt)),
                     ("!attrib=2", Context("end of tag name")),
                     ("\\c!attrib=2", Context("marker tag"))
                 ]
-            }))
+            })
         );
         assert_eq!(
-            marker::tag("v")(r"\c 1"),
-            Err(Err::Error(VerboseError {
+            marker::tag("v")(r"\c 1").finish(),
+            Err(VerboseError {
                 errors: vec![("c 1", Nom(Tag)), ("\\c 1", Context("marker tag"))]
-            }))
+            })
         );
         assert_eq!(
-            marker::tag("v")(r"v 1"),
-            Err(Err::Error(VerboseError {
+            marker::tag("v")(r"v 1").finish(),
+            Err(VerboseError {
                 errors: vec![("v 1", Char('\\')), ("v 1", Context("marker tag"))]
-            }))
+            })
         );
     }
 
@@ -228,19 +228,19 @@ mod test {
     //     assert_eq!(endmarker("f")(r"\f*text") as Result, Ok(("text", "f")));
     //     assert_eq!(endmarker("f")(r"\f*\v 1") as Result, Ok(("\\v 1", "f")));
     //     assert_eq!(
-    //         endmarker("f")(r"\w\f*"),
-    //         Err(Err::Error(VerboseError {
+    //         endmarker("f")(r"\w\f*").finish(),
+    //         Err(VerboseError {
     //             errors: vec![
     //                 ("w\\f*", Nom(ErrorKind::Tag)),
     //                 ("\\w\\f*", Context("end tag"))
     //             ]
-    //         }))
+    //         })
     //     );
     //     assert_eq!(
-    //         endmarker("f")(r"f* text"),
-    //         Err(Err::Error(VerboseError {
+    //         endmarker("f")(r"f* text").finish(),
+    //         Err(VerboseError {
     //             errors: vec![("f* text", Char('\\')), ("f* text", Context("end tag"))]
-    //         }))
+    //         })
     //     );
 
     //     // let inlinetag = |t| flat_map(marker(t), |opener| preceded(text, endmarker(opener)));
@@ -256,15 +256,15 @@ mod test {
     //         Ok(("|attrib=2", "c"))
     //     );
     //     assert_eq!(
-    //         pmarker("c")("\n\t\\c!attrib=2"),
-    //         Err(Err::Error(VerboseError {
+    //         pmarker("c")("\n\t\\c!attrib=2").finish(),
+    //         Err(VerboseError {
     //             errors: vec![
     //                 ("!attrib=2", Nom(ErrorKind::Eof)),
     //                 ("!attrib=2", Nom(ErrorKind::Alt)),
     //                 ("!attrib=2", Context("end of tag")),
     //                 ("\n\t\\c!attrib=2", Context("paragraph tag"))
     //             ]
-    //         }))
+    //         })
     //     );
     //     use nom::{error::convert_error, Finish};
     //     let input = "\\c!attrib=2";
@@ -275,19 +275,19 @@ mod test {
     //         convert_error(input, res.finish().unwrap_err())
     //     );
     //     assert_eq!(
-    //         pmarker("v")(" \n\t\\c 1"),
-    //         Err(Err::Error(VerboseError {
+    //         pmarker("v")(" \n\t\\c 1").finish(),
+    //         Err(VerboseError {
     //             errors: vec![
     //                 ("c 1", Nom(ErrorKind::Tag)),
     //                 (" \n\t\\c 1", Context("paragraph tag"))
     //             ]
-    //         }))
+    //         })
     //     );
     //     assert_eq!(
-    //         pmarker("v")("\n\t v 1"),
-    //         Err(Err::Error(VerboseError {
+    //         pmarker("v")("\n\t v 1").finish(),
+    //         Err(VerboseError {
     //             errors: vec![("v 1", Char('\\')), ("\n\t v 1", Context("paragraph tag"))]
-    //         }))
+    //         })
     //     );
     // }
 }
