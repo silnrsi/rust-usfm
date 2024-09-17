@@ -2,7 +2,7 @@ use std::{
     collections::HashMap,
     fmt::Display,
     io::{self, Read},
-    ops::Deref,
+    ops::Deref, str::FromStr,
 };
 
 use nom::{
@@ -197,47 +197,48 @@ fn record(input: &str) -> Result<Marker> {
     .parse(input)
 }
 
+impl FromStr for Extensions {
+    type Err = io::Error;
+
+    #[inline]
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        Extensions::default().update_from_str(s)
+    }
+}
+
 impl Extensions {
+    #[inline]
     pub fn from_reader<R: Read>(reader: R) -> io::Result<Self> {
-        let input = io::read_to_string(reader)?;
-        let input = input.trim();
-        let mut it = iterator(input, record);
-        let parsed: Extensions = Extensions(it.map(|m| (m.name.clone(), m)).collect());
-        it.finish()
-            .finish()
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, convert_error(input, e)))?;
-        Ok(parsed)
+        Extensions::default().update_from_reader(reader)
     }
 
     pub fn update_from_str(mut self, input: impl AsRef<str>) -> io::Result<Self> {
         let input = input.as_ref().trim();
         let mut it = iterator(input, record);
-        for m in it.into_iter() {
-            self.0
-                .entry(m.name.clone())
-                .and_modify(|e| e.update_from(m.clone()))
-                .or_insert(m);
-        }
+        if self.is_empty() {
+            self.0 = it.map(|m| (m.name.clone(), m)).collect();
+        } else {
+            for m in it.into_iter() {
+                self.0
+                    .entry(m.name.clone())
+                    .and_modify(|e| e.update_from(m.clone()))
+                    .or_insert(m);
+            }
+        }      
         it.finish()
             .finish()
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, convert_error(input, e)))?;
         Ok(self)
     }
 
+    #[inline]
     pub fn update_from_reader<R: Read>(self, reader: R) -> io::Result<Self> {
         self.update_from_str(io::read_to_string(reader)?)
     }
 
+    #[inline]
     pub fn shrink_to_fit(&mut self) {
         self.0.shrink_to_fit();
-    }
-}
-
-impl From<&str> for Extensions {
-    fn from(value: &str) -> Self {
-        Extensions::default()
-            .update_from_str(value)
-            .expect("struct Extensions")
     }
 }
 

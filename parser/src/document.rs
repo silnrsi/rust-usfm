@@ -69,7 +69,7 @@ impl<'i> State {
     fn usfm_ext() -> &'static Extensions {
         static USFM_EXT: OnceLock<Extensions> = OnceLock::new();
         USFM_EXT.get_or_init(|| {
-            let mut res = Extensions::from(Self::USFM_SRC);
+            let mut res: Extensions = Self::USFM_SRC.parse().expect("Parsing usfm.ext");
             res.shrink_to_fit();
             res
         })
