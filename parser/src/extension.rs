@@ -2,7 +2,8 @@ use std::{
     collections::HashMap,
     fmt::Display,
     io::{self, Read},
-    ops::Deref, str::FromStr,
+    ops::Deref,
+    str::FromStr,
 };
 
 use nom::{
@@ -10,7 +11,7 @@ use nom::{
     bytes::complete::tag_no_case,
     character::complete::{char, not_line_ending},
     combinator::{cut, eof, iterator, opt, success, value},
-    error::{context, convert_error, VerboseError},
+    error::{context, convert_error, make_error, VerboseError},
     multi::{many0, separated_list1},
     sequence::{delimited, terminated},
     Finish, Parser,
@@ -159,15 +160,20 @@ where
 }
 
 fn record(input: &str) -> Result<Marker> {
+    if input.trim_ascii_start().is_empty() {
+        return Err(nom::Err::Error(make_error(
+            input,
+            nom::error::ErrorKind::Eof,
+        )));
+    }
     let attribute = |input| {
         terminal::name
             .and(opt(char('?')).map(|o| o.is_some()))
             .parse(input)
     };
     let attributes = separated_list1(terminal::space1, attribute);
-    let (input, name) = field("marker", terminal::name).parse(input)?;
     cut(terminated(
-        permutation((
+        field("marker", terminal::name).and(permutation((
             opt(field("attributes", attributes)),
             field("category", category).or(success(Category::Unknown)),
             opt(field("closes", terminal::name)),
@@ -175,10 +181,10 @@ fn record(input: &str) -> Result<Marker> {
             opt(field("defattrib", terminal::name)),
             opt(field("description", not_line_ending)),
             many0(field("attribute", attribute)),
-        )),
+        ))),
         terminal::line_ending1.or(eof),
     ))
-    .map(|field| Marker {
+    .map(|(name, field)| Marker {
         name: name.to_owned(),
         attributes: Attributes::from_iter(
             field
@@ -224,7 +230,7 @@ impl Extensions {
                     .and_modify(|e| e.update_from(m.clone()))
                     .or_insert(m);
             }
-        }      
+        }
         it.finish()
             .finish()
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, convert_error(input, e)))?;
@@ -245,8 +251,9 @@ impl Extensions {
 #[cfg(test)]
 mod tests {
     use nom::{
+        Err::{Failure},
         character::complete::not_line_ending,
-        error::{context, VerboseError},
+        error::{context, VerboseError, VerboseErrorKind::{Char, Context}},
         IResult,
     };
 
@@ -270,6 +277,25 @@ mod tests {
 
     #[test]
     fn parse_record() {
+        assert_eq!(
+            record("marker test\n\\category internal\n"),
+            Err(Failure(VerboseError {
+                errors: vec![
+                    (
+                        "marker test\n\\category internal\n",
+                        Char('\\')
+                    ),
+                    (
+                        "marker test\n\\category internal\n",
+                        Context("marker tag")
+                    ),
+                    (
+                        "marker test\n\\category internal\n",
+                        Context("record field")
+                    )
+                ]
+            }))
+        );
         assert_eq!(
             record("\\marker test\n\\category internal\n") as Result<Marker>,
             Ok((
